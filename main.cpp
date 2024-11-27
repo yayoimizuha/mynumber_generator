@@ -41,9 +41,9 @@ int main(int argc, char *argv[]) {
     cerr << "SYCL Device Name: " << syclDevice.get_info<sycl::info::device::name>() << endl;
     cerr << "SYCL Device Vendor: " << syclDevice.get_info<sycl::info::device::vendor>() << endl;
     const auto begin = system_clock::now();
-    const int64_t chunk = 1e8L;
+    const int64_t chunk = 5e7L;
     const int64_t all = 1e11L;
-    setvbuf(out, nullptr, _IOFBF, chunk * 13);
+    setvbuf(out, nullptr, _IOFBF, chunk * 13 + 1);
     auto output_string = sycl::malloc_device<char>(chunk * 13 + 1, syclQueue);
     auto malloc_device_local = static_cast<char *>(malloc((chunk * 13 + 1) * sizeof(char)));
     for (int64_t i = 0; i < all; i += chunk) {
@@ -65,15 +65,14 @@ int main(int argc, char *argv[]) {
             }
             output_string[13 * j + 12] = '\n';
 
-        });
-        syclQueue.single_task([=]() { output_string[chunk * 13] = '\0'; });
-        syclQueue.wait();
-        syclQueue.memcpy(malloc_device_local, output_string, sizeof(char) * (chunk * 13 + 1)).wait();
+        }).wait();
+        syclQueue.memcpy(malloc_device_local, output_string, sizeof(char) * (chunk * 13)).wait();
+        malloc_device_local[chunk * 13] = '\0';
         fwrite(malloc_device_local, sizeof(char), chunk * 13, out);
         fprintf(stderr, "\r%.2Lf%%\t%.3LfGbps",
                 static_cast<long double>(i + chunk) / (all * 1e-2),
                 static_cast<long double>((i + chunk) * 13 * 8) / 1000'000'000.0L / (static_cast<long double>(duration_cast<milliseconds>((system_clock::now() - begin)).count()) / 1000));
-        if (i > chunk * 100) break;
+//        if (i > chunk * 50) break;
     }
     sycl::free(output_string, syclQueue);
     free(malloc_device_local);
